@@ -46,7 +46,7 @@ export default class WAFManager {
       const { stdout } = await execAsync(command, {
         encoding: "utf-8",
         timeout: 30_000,
-        maxBuffer: 50 * 1024 * 1024, // 50 MB — docker logs can be large
+        maxBuffer: 100 * 1024 * 1024, // 100 MB — docker logs can be large
         cwd: this.config.composeDir,
       });
       return { success: true, output: stdout.trim() };
@@ -154,7 +154,7 @@ export default class WAFManager {
 
     const container = await this.findContainer();
     const result = await this.exec(
-      `docker logs ${container} 2>&1 | grep '^{"transaction"'`,
+      `docker logs --since ${this.config.logsSince} ${container} 2>&1 | grep '^{"transaction"'`,
     );
 
     if (!result.success || !result.output) {

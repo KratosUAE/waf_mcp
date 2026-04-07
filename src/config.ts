@@ -10,6 +10,7 @@ export interface WAFConfig {
   exclusionsFile: string;
   composeFile: string;
   ipinfoToken: string | undefined;
+  logsSince: string;
 }
 
 function loadIpinfoToken(): string | undefined {
@@ -62,5 +63,6 @@ export function getConfig(): WAFConfig {
     exclusionsFile: process.env.WAF_EXCLUSIONS_FILE ?? "modsecurity/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf",
     composeFile: process.env.WAF_COMPOSE_FILE ?? "docker-compose.yml",
     ipinfoToken,
+    logsSince: process.env.WAF_LOGS_SINCE ?? "24h",
   };
 }
