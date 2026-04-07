@@ -1,8 +1,28 @@
 {
   "name": "mcp-waf",
   "version": "1.0.0",
+  "description": "MCP server for ModSecurity WAF management — monitor, analyze, and configure OWASP CRS via AI assistants",
   "type": "module",
   "main": "dist/index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KratosUAE/waf_mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "waf",
+    "modsecurity",
+    "owasp",
+    "crs",
+    "security",
+    "firewall",
+    "claude",
+    "claude-code",
+    "model-context-protocol",
+    "docker",
+    "nginx"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
