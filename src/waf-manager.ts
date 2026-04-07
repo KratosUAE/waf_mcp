@@ -122,7 +122,7 @@ export default class WAFManager {
 
     // Rules loaded
     const rulesResult = await this.exec(
-      `docker logs ${container} 2>&1 | grep -oP 'rules loaded inline/local/remote: \\K.*' | tail -1`,
+      `docker logs ${container} 2>&1 | grep -oP 'rules loaded inline/local/remote: \\K[0-9/]+' | tail -1`,
     );
     const rulesLoaded = rulesResult.success ? rulesResult.output || "unknown" : "unknown";
 
@@ -431,7 +431,7 @@ export default class WAFManager {
     let requestBody = "";
     const rawBody = (raw?.request as Record<string, unknown>)?.body;
     if (typeof rawBody === "string") {
-      requestBody = verbose ? rawBody : rawBody.slice(0, 500);
+      requestBody = verbose ? rawBody.slice(0, 8000) : rawBody.slice(0, 500);
     }
 
     // For verbose, re-extract full matchedData from _raw (cached rules are truncated to 1000)
