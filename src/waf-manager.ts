@@ -443,7 +443,7 @@ export default class WAFManager {
           id: String((msg.details as Record<string, unknown>)?.ruleId ?? "unknown"),
           message: String(msg.message ?? ""),
           severity: String((msg.details as Record<string, unknown>)?.severity ?? "UNKNOWN"),
-          matchedData: String((msg.details as Record<string, unknown>)?.data ?? ""),
+          matchedData: String((msg.details as Record<string, unknown>)?.data ?? "").slice(0, 4000),
         }));
       }
     }
