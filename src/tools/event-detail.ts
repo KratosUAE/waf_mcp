@@ -10,7 +10,7 @@ export const eventDetailSchema = z.object({
 export function eventDetailHandler(waf: WAFManager) {
   return async (args: z.infer<typeof eventDetailSchema>) => {
     try {
-      const data = await waf.getEventDetail(args.index);
+      const data = await waf.getEventDetail(args.index, args.verbose);
 
       if (!args.verbose) {
         data.requestBody = truncate(data.requestBody || "", 500);

@@ -187,7 +187,7 @@ export default class WAFManager {
               id: String(msg.details?.ruleId ?? "unknown"),
               message: String(msg.message ?? ""),
               severity: String(msg.details?.severity ?? "UNKNOWN"),
-              matchedData: String(msg.details?.data ?? ""),
+              matchedData: String(msg.details?.data ?? "").slice(0, 1000),
             });
           }
         }
@@ -408,7 +408,7 @@ export default class WAFManager {
   // Analysis: Event Detail
   // ---------------------------------------------------------------------------
 
-  async getEventDetail(index: number): Promise<WAFEventDetail> {
+  async getEventDetail(index: number, verbose: boolean = false): Promise<WAFEventDetail> {
     const events = await this.getAllEvents();
 
     if (index < 0 || index >= events.length) {
@@ -427,11 +427,25 @@ export default class WAFManager {
       }
     }
 
-    // Extract body (truncated)
+    // Extract body
     let requestBody = "";
     const rawBody = (raw?.request as Record<string, unknown>)?.body;
     if (typeof rawBody === "string") {
-      requestBody = rawBody.slice(0, 2000);
+      requestBody = verbose ? rawBody : rawBody.slice(0, 500);
+    }
+
+    // For verbose, re-extract full matchedData from _raw (cached rules are truncated to 1000)
+    let rules = event.rules;
+    if (verbose && raw) {
+      const rawMsgs = (raw as Record<string, unknown>).messages;
+      if (Array.isArray(rawMsgs)) {
+        rules = rawMsgs.map((msg: Record<string, unknown>) => ({
+          id: String((msg.details as Record<string, unknown>)?.ruleId ?? "unknown"),
+          message: String(msg.message ?? ""),
+          severity: String((msg.details as Record<string, unknown>)?.severity ?? "UNKNOWN"),
+          matchedData: String((msg.details as Record<string, unknown>)?.data ?? ""),
+        }));
+      }
     }
 
     return {
@@ -443,7 +457,7 @@ export default class WAFManager {
       httpCode: event.httpCode,
       requestHeaders,
       requestBody,
-      rules: event.rules,
+      rules,
     };
   }
 
