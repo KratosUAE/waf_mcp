@@ -147,8 +147,16 @@ export default class WAFManager {
   // Event parsing with cache
   // ---------------------------------------------------------------------------
 
+  private static normalizeSince(since?: string): string {
+    if (!since) return "24h";
+    // Docker --since doesn't support 'd' suffix — convert to hours
+    const match = since.match(/^(\d+)d$/);
+    if (match) return `${parseInt(match[1]) * 24}h`;
+    return since;
+  }
+
   async getAllEvents(since?: string): Promise<WAFEvent[]> {
-    const sinceVal = since ?? this.config.logsSince;
+    const sinceVal = WAFManager.normalizeSince(since ?? this.config.logsSince);
     const now = Date.now();
     if (this.eventCache && this.eventCacheSince === sinceVal && (now - this.eventCacheTime) < WAFManager.CACHE_TTL_MS) {
       return this.eventCache;
