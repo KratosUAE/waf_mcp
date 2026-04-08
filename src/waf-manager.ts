@@ -31,6 +31,7 @@ export default class WAFManager {
   // Event cache with TTL
   private eventCache: WAFEvent[] | null = null;
   private eventCacheTime: number = 0;
+  private eventCacheSince: string = "";
   private static readonly CACHE_TTL_MS = 30_000;
 
   constructor() {
@@ -146,20 +147,22 @@ export default class WAFManager {
   // Event parsing with cache
   // ---------------------------------------------------------------------------
 
-  private async getAllEvents(): Promise<WAFEvent[]> {
+  async getAllEvents(since?: string): Promise<WAFEvent[]> {
+    const sinceVal = since ?? this.config.logsSince;
     const now = Date.now();
-    if (this.eventCache && (now - this.eventCacheTime) < WAFManager.CACHE_TTL_MS) {
+    if (this.eventCache && this.eventCacheSince === sinceVal && (now - this.eventCacheTime) < WAFManager.CACHE_TTL_MS) {
       return this.eventCache;
     }
 
     const container = await this.findContainer();
     const result = await this.exec(
-      `docker logs --since ${this.config.logsSince} ${container} 2>&1 | grep '^{"transaction"'`,
+      `docker logs --since ${sinceVal} ${container} 2>&1 | grep '^{"transaction"'`,
     );
 
     if (!result.success || !result.output) {
       this.eventCache = [];
       this.eventCacheTime = now;
+      this.eventCacheSince = sinceVal;
       return [];
     }
 
@@ -214,6 +217,7 @@ export default class WAFManager {
 
     this.eventCache = events;
     this.eventCacheTime = now;
+    this.eventCacheSince = sinceVal;
     return events;
   }
 
@@ -221,8 +225,8 @@ export default class WAFManager {
   // Analysis: Overview
   // ---------------------------------------------------------------------------
 
-  async getOverview(): Promise<WAFOverview> {
-    const events = await this.getAllEvents();
+  async getOverview(since?: string): Promise<WAFOverview> {
+    const events = await this.getAllEvents(since);
 
     const uniqueIPs = new Set<string>();
     const uniqueRules = new Set<string>();
@@ -258,8 +262,8 @@ export default class WAFManager {
   // Analysis: Top IPs
   // ---------------------------------------------------------------------------
 
-  async getTopIPs(count: number = 10): Promise<WAFTopIP[]> {
-    const events = await this.getAllEvents();
+  async getTopIPs(count: number = 10, since?: string): Promise<WAFTopIP[]> {
+    const events = await this.getAllEvents(since);
 
     const ipData = new Map<string, { count: number; lastSeen: string }>();
 
@@ -298,8 +302,8 @@ export default class WAFManager {
   // Analysis: Top Rules
   // ---------------------------------------------------------------------------
 
-  async getTopRules(count: number = 10): Promise<WAFTopRule[]> {
-    const events = await this.getAllEvents();
+  async getTopRules(count: number = 10, since?: string): Promise<WAFTopRule[]> {
+    const events = await this.getAllEvents(since);
 
     const ruleData = new Map<string, { count: number; severity: string; message: string }>();
 
@@ -333,8 +337,8 @@ export default class WAFManager {
   // Analysis: False Positive Candidates
   // ---------------------------------------------------------------------------
 
-  async getFPCandidates(): Promise<WAFFPCandidate[]> {
-    const events = await this.getAllEvents();
+  async getFPCandidates(since?: string): Promise<WAFFPCandidate[]> {
+    const events = await this.getAllEvents(since);
 
     const fpData = new Map<string, { count: number; message: string }>();
 
@@ -364,8 +368,8 @@ export default class WAFManager {
   // Analysis: Events by IP
   // ---------------------------------------------------------------------------
 
-  async getEventsByIP(ip: string, count: number = 20): Promise<(WAFEventSummary & { index: number })[]> {
-    const events = await this.getAllEvents();
+  async getEventsByIP(ip: string, count: number = 20, since?: string): Promise<(WAFEventSummary & { index: number })[]> {
+    const events = await this.getAllEvents(since);
 
     return events
       .filter((e) => e.sourceIp === ip)
@@ -384,8 +388,8 @@ export default class WAFManager {
   // Analysis: Events by Rule
   // ---------------------------------------------------------------------------
 
-  async getEventsByRule(ruleId: string, count: number = 20): Promise<(WAFEventByRule & { index: number })[]> {
-    const events = await this.getAllEvents();
+  async getEventsByRule(ruleId: string, count: number = 20, since?: string): Promise<(WAFEventByRule & { index: number })[]> {
+    const events = await this.getAllEvents(since);
 
     return events
       .filter((e) => e.rules.some((r) => r.id === ruleId))
@@ -408,8 +412,8 @@ export default class WAFManager {
   // Analysis: Event Detail
   // ---------------------------------------------------------------------------
 
-  async getEventDetail(index: number, verbose: boolean = false): Promise<WAFEventDetail> {
-    const events = await this.getAllEvents();
+  async getEventDetail(index: number, verbose: boolean = false, since?: string): Promise<WAFEventDetail> {
+    const events = await this.getAllEvents(since);
 
     if (index < 0 || index >= events.length) {
       throw new Error(`Event index ${index} out of range (0-${events.length - 1})`);

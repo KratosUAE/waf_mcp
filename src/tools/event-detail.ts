@@ -5,12 +5,13 @@ import { truncate } from "./utils.js";
 export const eventDetailSchema = z.object({
   index: z.number().describe("Event index from a previous query result"),
   verbose: z.boolean().optional().default(false).describe("Return full body and matched data (default: truncated for readability)"),
+  since: z.string().optional().default("24h").describe("Time window for log search (e.g. '1h', '24h', '7d'). Default: 24h"),
 });
 
 export function eventDetailHandler(waf: WAFManager) {
   return async (args: z.infer<typeof eventDetailSchema>) => {
     try {
-      const data = await waf.getEventDetail(args.index, args.verbose);
+      const data = await waf.getEventDetail(args.index, args.verbose, args.since);
 
       if (!args.verbose) {
         data.requestBody = truncate(data.requestBody || "", 500);

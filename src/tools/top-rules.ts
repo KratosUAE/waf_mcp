@@ -3,12 +3,13 @@ import type WAFManager from "../waf-manager.js";
 
 export const topRulesSchema = z.object({
   count: z.number().optional().default(10).describe("Number of top rules to return (default 10)"),
+  since: z.string().optional().default("24h").describe("Time window for log search (e.g. '1h', '24h', '7d'). Default: 24h"),
 });
 
 export function topRulesHandler(waf: WAFManager) {
   return async (args: z.infer<typeof topRulesSchema>) => {
     try {
-      const data = await waf.getTopRules(args.count);
+      const data = await waf.getTopRules(args.count, args.since);
       return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
