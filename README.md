@@ -41,9 +41,21 @@ This MCP server lets an AI assistant do that work directly:
 | `waf_deny_ip` | Remove an IP from whitelist |
 | `waf_test` | Run test suite: scanner detection, SQLi, XSS, path traversal |
 
-### Verbose mode
+### Common parameters
 
-`waf_events_by_ip`, `waf_events_by_rule`, and `waf_event_detail` accept a `verbose: true` parameter. By default, `matchedData` and `requestBody` are truncated to keep responses within context limits. With `verbose: true`, matched data expands to 4000 chars per rule and request body to 8KB.
+**`since`** — All analysis tools accept a `since` parameter to control the time window. Default is `"24h"`. Supports Docker duration syntax: `"1h"`, `"24h"`, `"7d"`, `"30m"`. Days are automatically converted to hours (Docker's `--since` doesn't support the `d` suffix natively).
+
+```
+waf_overview(since: "7d")        # last 7 days
+waf_events_by_ip(ip: "1.2.3.4", since: "1h")  # last hour
+```
+
+**`verbose`** — `waf_events_by_ip`, `waf_events_by_rule`, and `waf_event_detail` accept `verbose: true`. By default, `matchedData` and `requestBody` are truncated to keep responses within context limits:
+
+| Field | Default | Verbose |
+|-------|---------|---------|
+| `matchedData` (per rule) | 150–200 chars | 4000 chars |
+| `requestBody` | 500 chars | 8000 chars |
 
 ## Prerequisites
 
@@ -69,6 +81,7 @@ npm run build
 |----------|----------|---------|-------------|
 | `WAF_COMPOSE_DIR` | **Yes** | — | Path to directory containing `docker-compose.yml` |
 | `WAF_DOMAIN` | No | `https://localhost` | Domain for WAF test requests |
+| `WAF_LOGS_SINCE` | No | `24h` | Default time window for log queries |
 | `WAF_CONTAINER_PATTERN` | No | `modsecurity` | Grep pattern to find the ModSecurity container |
 | `WAF_EXCLUSIONS_FILE` | No | `modsecurity/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf` | Path to CRS exclusions file (relative to compose dir) |
 | `WAF_COMPOSE_FILE` | No | `docker-compose.yml` | Docker Compose filename |
@@ -163,13 +176,23 @@ Claude: [calls waf_event_detail, index: 42]
   → User-Agent: OpenAI/JS 6.26.0, body contains tool descriptions
   → Rule 942360 matched "update" in cron action descriptions
 
-Claude: "This is your OpenClaw bot — all false positives. 
+Claude: "This is your OpenClaw bot — all false positives.
          Want me to whitelist this IP?"
 
 You: "Yes"
 
 Claude: [calls waf_allow_ip, ip: "135.237.83.23"]
   → Done. IP whitelisted.
+```
+
+Investigating older events:
+
+```
+You: "Check IP 185.206.249.230 — it was flagged yesterday"
+
+Claude: [calls waf_events_by_ip, ip: "185.206.249.230", since: "7d"]
+  → 2 events from Apr 7, GET /v1/skills, HTTP 401, no rules triggered
+  → Apple Private Relay IP (Singapore), just unauthorized API probes
 ```
 
 ## Development
@@ -209,7 +232,7 @@ src/
     └── utils.ts           # Shared utilities
 ```
 
-Events are parsed from Docker logs and cached for 30 seconds. Rapid drill-down calls (overview → top IPs → events by IP → event detail) hit the cache instead of re-parsing.
+Events are parsed from Docker logs and cached for 30 seconds. Rapid drill-down calls (overview → top IPs → events by IP → event detail) hit the cache instead of re-parsing. The cache is invalidated when the `since` parameter changes.
 
 ## License
 
