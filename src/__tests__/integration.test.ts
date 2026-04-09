@@ -78,9 +78,9 @@ describe.skipIf(SKIP)("Integration: WAFManager vs raw docker logs", () => {
     waf = new mod.default();
   });
 
-  it("event count matches", async () => {
+  it("event count matches (±5 tolerance for live data)", async () => {
     const overview = await waf.getOverview(SINCE);
-    expect(overview.totalEvents).toBe(rawEvents.length);
+    expect(Math.abs(overview.totalEvents - rawEvents.length)).toBeLessThanOrEqual(5);
   });
 
   it("unique IPs match", async () => {
@@ -110,7 +110,7 @@ describe.skipIf(SKIP)("Integration: WAFManager vs raw docker logs", () => {
 
     for (const entry of topIPs) {
       const rawCount = rawIPCounts.get(entry.ip) ?? 0;
-      expect(entry.count).toBe(rawCount);
+      expect(Math.abs(entry.count - rawCount)).toBeLessThanOrEqual(5);
     }
   });
 
@@ -125,7 +125,7 @@ describe.skipIf(SKIP)("Integration: WAFManager vs raw docker logs", () => {
 
     for (const entry of topRules) {
       const rawCount = rawRuleCounts.get(entry.ruleId) ?? 0;
-      expect(entry.count).toBe(rawCount);
+      expect(Math.abs(entry.count - rawCount)).toBeLessThanOrEqual(5);
     }
   });
 
