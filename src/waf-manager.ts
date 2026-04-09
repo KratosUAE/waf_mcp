@@ -2,7 +2,7 @@ import { exec as execCb } from "node:child_process";
 import { promisify } from "node:util";
 
 const execAsync = promisify(execCb);
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { getConfig, type WAFConfig } from "./config.js";
 import { logger } from "./logger.js";
@@ -76,6 +76,10 @@ export default class WAFManager {
       throw new Error("No running ModSecurity container found");
     }
 
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(result.output)) {
+      throw new Error(`Unexpected container name format: ${result.output}`);
+    }
+
     this.cachedContainer = result.output;
     logger.debug(`Found container: ${this.cachedContainer}`);
     return this.cachedContainer;
@@ -89,7 +93,7 @@ export default class WAFManager {
     const container = await this.findContainer();
 
     const composeFile = resolve(this.config.composeDir, this.config.composeFile);
-    const composeContent = readFileSync(composeFile, "utf-8");
+    const composeContent = await readFile(composeFile, "utf-8");
 
     // Engine mode
     const engineMatch = composeContent.match(/MODSEC_RULE_ENGINE=(\S+)/);
@@ -151,8 +155,11 @@ export default class WAFManager {
     if (!since) return "24h";
     // Docker --since doesn't support 'd' suffix — convert to hours
     const match = since.match(/^(\d+)d$/);
-    if (match) return `${parseInt(match[1]) * 24}h`;
-    return since;
+    const normalized = match ? `${parseInt(match[1]) * 24}h` : since;
+    if (!/^\d+[smh]$/.test(normalized)) {
+      throw new Error(`Invalid since value: "${since}". Expected format: 1h, 24h, 30m, 7d`);
+    }
+    return normalized;
   }
 
   async getAllEvents(since?: string): Promise<WAFEvent[]> {
@@ -516,7 +523,7 @@ export default class WAFManager {
     }
 
     const composeFile = resolve(this.config.composeDir, this.config.composeFile);
-    const content = readFileSync(composeFile, "utf-8");
+    const content = await readFile(composeFile, "utf-8");
 
     const paranoiaMatch = content.match(/PARANOIA=\d+/);
     if (!paranoiaMatch) {
@@ -524,7 +531,7 @@ export default class WAFManager {
     }
 
     const updated = content.replace(/PARANOIA=\d+/, `PARANOIA=${level}`);
-    writeFileSync(composeFile, updated, "utf-8");
+    await writeFile(composeFile, updated, "utf-8");
 
     // Recreate container
     const recreateResult = await this.exec(
@@ -550,16 +557,19 @@ export default class WAFManager {
     const exclusionsPath = resolve(this.config.composeDir, this.config.exclusionsFile);
 
     try {
-      const existing = existsSync(exclusionsPath)
-        ? readFileSync(exclusionsPath, "utf-8")
-        : "";
+      let existing = "";
+      try {
+        existing = await readFile(exclusionsPath, "utf-8");
+      } catch {
+        // File doesn't exist yet — start empty
+      }
 
       if (existing.includes(`SecRuleRemoveById ${ruleId}`)) {
         return { success: true, output: `Rule ${ruleId} is already disabled` };
       }
 
       const addition = `\n# Disabled rule ${ruleId}\nSecRuleRemoveById ${ruleId}\n`;
-      writeFileSync(exclusionsPath, existing + addition, "utf-8");
+      await writeFile(exclusionsPath, existing + addition, "utf-8");
     } catch (err) {
       return { success: false, output: `Failed to write exclusions: ${err}` };
     }
@@ -576,12 +586,8 @@ export default class WAFManager {
   async enableRule(ruleId: string): Promise<CommandResult> {
     const exclusionsPath = resolve(this.config.composeDir, this.config.exclusionsFile);
 
-    if (!existsSync(exclusionsPath)) {
-      return { success: false, output: "Exclusions file not found" };
-    }
-
     try {
-      let content = readFileSync(exclusionsPath, "utf-8");
+      let content = await readFile(exclusionsPath, "utf-8");
       content = content
         .split("\n")
         .filter(
@@ -590,8 +596,11 @@ export default class WAFManager {
             line.trim() !== `# Disabled rule ${ruleId}`,
         )
         .join("\n");
-      writeFileSync(exclusionsPath, content, "utf-8");
+      await writeFile(exclusionsPath, content, "utf-8");
     } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return { success: false, output: "Exclusions file not found" };
+      }
       return { success: false, output: `Failed to update exclusions: ${err}` };
     }
 
@@ -612,9 +621,12 @@ export default class WAFManager {
     const exclusionsPath = resolve(this.config.composeDir, this.config.exclusionsFile);
 
     try {
-      const existing = existsSync(exclusionsPath)
-        ? readFileSync(exclusionsPath, "utf-8")
-        : "";
+      let existing = "";
+      try {
+        existing = await readFile(exclusionsPath, "utf-8");
+      } catch {
+        // File doesn't exist yet — start empty
+      }
 
       // Find next available ID in 90000+ range (reserved for whitelist rules)
       const idMatches = existing.match(/# Whitelist IP [\s\S]*?id:(\d+)/g) ?? [];
@@ -628,7 +640,7 @@ export default class WAFManager {
       }
 
       const addition = `\n# Whitelist IP ${ip}\nSecRule REMOTE_ADDR "@ipMatch ${ip}" "id:${nextId},phase:1,allow,nolog,ctl:ruleEngine=Off"\n`;
-      writeFileSync(exclusionsPath, existing + addition, "utf-8");
+      await writeFile(exclusionsPath, existing + addition, "utf-8");
     } catch (err) {
       return { success: false, output: `Failed to write exclusions: ${err}` };
     }
@@ -645,12 +657,13 @@ export default class WAFManager {
   async denyIP(ip: string): Promise<CommandResult> {
     const exclusionsPath = resolve(this.config.composeDir, this.config.exclusionsFile);
 
-    if (!existsSync(exclusionsPath)) {
-      return { success: true, output: "IP was not whitelisted (exclusions file does not exist)" };
-    }
-
     try {
-      let content = readFileSync(exclusionsPath, "utf-8");
+      let content: string;
+      try {
+        content = await readFile(exclusionsPath, "utf-8");
+      } catch {
+        return { success: true, output: "IP was not whitelisted (exclusions file does not exist)" };
+      }
       content = content
         .split("\n")
         .filter(
@@ -659,7 +672,7 @@ export default class WAFManager {
             line.trim() !== `# Whitelist IP ${ip}`,
         )
         .join("\n");
-      writeFileSync(exclusionsPath, content, "utf-8");
+      await writeFile(exclusionsPath, content, "utf-8");
     } catch (err) {
       return { success: false, output: `Failed to update exclusions: ${err}` };
     }
@@ -709,8 +722,11 @@ export default class WAFManager {
 
     try {
       const response = await fetch(
-        `https://ipinfo.io/${ip}/json?token=${this.config.ipinfoToken}`,
-        { signal: AbortSignal.timeout(2000) },
+        `https://ipinfo.io/${ip}/json`,
+        {
+          headers: { Authorization: `Bearer ${this.config.ipinfoToken}` },
+          signal: AbortSignal.timeout(2000),
+        },
       );
 
       if (!response.ok) {

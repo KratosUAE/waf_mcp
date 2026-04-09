@@ -1,6 +1,12 @@
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import WAFManager from "./waf-manager.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "..", "package.json"), "utf-8"));
 
 // Analysis tools (drill-down pipeline)
 import { overviewSchema, overviewHandler } from "./tools/overview.js";
@@ -21,7 +27,7 @@ import { allowIPSchema, allowIPHandler } from "./tools/allow-ip.js";
 import { denyIPSchema, denyIPHandler } from "./tools/deny-ip.js";
 import { testSchema, testHandler } from "./tools/test.js";
 
-const server = new McpServer({ name: "waf", version: "2.0.0" });
+const server = new McpServer({ name: "waf", version: pkg.version });
 const waf = new WAFManager();
 
 // ---------------------------------------------------------------------------

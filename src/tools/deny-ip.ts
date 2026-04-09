@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type WAFManager from "../waf-manager.js";
-
-const ipPattern = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+import { ipPattern } from "./utils.js";
 
 export const denyIPSchema = z.object({
   ip: z.string().regex(ipPattern, "Must be a valid IPv4 address or CIDR (e.g. 192.168.1.1 or 10.0.0.0/24)")

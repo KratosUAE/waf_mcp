@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type WAFManager from "../waf-manager.js";
-import { truncate } from "./utils.js";
+import { truncate, ipPattern } from "./utils.js";
 
 export const eventsByIPSchema = z.object({
-  ip: z.string().describe("IP address to filter events by"),
+  ip: z.string().regex(ipPattern, "Must be a valid IPv4 address (e.g. 192.168.1.1)").describe("IP address to filter events by"),
   count: z.number().optional().default(20).describe("Number of events to return (default 20)"),
   verbose: z.boolean().optional().default(false).describe("Include full matched data in rules (default: truncated)"),
   since: z.string().optional().default("24h").describe("Time window for log search (e.g. '1h', '24h', '7d'). Default: 24h"),

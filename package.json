@@ -1,6 +1,6 @@
 {
   "name": "mcp-waf",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "MCP server for ModSecurity WAF management — monitor, analyze, and configure OWASP CRS via AI assistants",
   "type": "module",
   "main": "dist/index.js",

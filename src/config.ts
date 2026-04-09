@@ -54,6 +54,12 @@ export function getConfig(): WAFConfig {
     process.exit(1);
   }
 
+  const logsSince = process.env.WAF_LOGS_SINCE ?? "24h";
+  if (!/^\d+[smhd]$/.test(logsSince)) {
+    logger.error(`Invalid WAF_LOGS_SINCE: must match format like 24h, 30m, 7d`);
+    process.exit(1);
+  }
+
   const ipinfoToken = loadIpinfoToken();
 
   return {
@@ -63,6 +69,6 @@ export function getConfig(): WAFConfig {
     exclusionsFile: process.env.WAF_EXCLUSIONS_FILE ?? "modsecurity/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf",
     composeFile: process.env.WAF_COMPOSE_FILE ?? "docker-compose.yml",
     ipinfoToken,
-    logsSince: process.env.WAF_LOGS_SINCE ?? "24h",
+    logsSince,
   };
 }
